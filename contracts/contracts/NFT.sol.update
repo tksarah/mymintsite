@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+
+contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
+    using Strings for uint256;
+
+    uint256 private _nextTokenId;
+    mapping(address => uint256[]) private listTokenId;
+    string private baseURI;
+    uint256 public constant MAX_SUPPLY = 10000;
+
+    event TokenMinted(address indexed to, uint256 tokenId);
+    event BaseURISet(string baseURI);
+
+    constructor(
+        address initialOwner,
+        string memory baseURI_
+    ) ERC721("DemoNFT", "DNFT") Ownable(initialOwner) {
+        setBaseURI(baseURI_);
+    }
+
+    function safeMint(address to) public onlyOwner {
+        require(to != address(0), "Invalid address");
+        require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
+        uint256 tokenId = _nextTokenId++;
+        listTokenId[to].push(tokenId);
+        _safeMint(to, tokenId);
+        emit TokenMinted(to, tokenId);
+    }
+
+    function getListTokenId(address _owner) public view returns (uint256[] memory) {
+        return listTokenId[_owner];
+    }
+
+    function _removeTokenFromList(address owner, uint256 tokenId) internal {
+        uint256[] storage tokens = listTokenId[owner];
+        for (uint i = 0; i < tokens.length; i++) {
+            if (tokens[i] == tokenId) {
+                tokens[i] = tokens[tokens.length - 1];
+                tokens.pop();
+                break;
+            }
+        }
+    }
+
+    function _update(
+        address to,
+        uint256 tokenId,
+        address auth
+    ) internal override(ERC721, ERC721Enumerable) returns (address) {
+        address from = super._update(to, tokenId, auth);
+        
+        if (from != address(0) && to != address(0)) {
+            _removeTokenFromList(from, tokenId);
+            listTokenId[to].push(tokenId);
+        } else if (to == address(0)) {
+            _removeTokenFromList(from, tokenId);
+        }
+        
+        return from;
+    }
+
+    function _increaseBalance(
+        address account,
+        uint128 value
+    ) internal override(ERC721, ERC721Enumerable) {
+        super._increaseBalance(account, value);
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, ERC721Enumerable) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
+    function setBaseURI(string memory baseURI_) public onlyOwner {
+        baseURI = baseURI_;
+        emit BaseURISet(baseURI_);
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return baseURI;
+    }
+
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        _requireOwned(tokenId);
+        string memory baseURI_ = _baseURI();
+        uint256 uniqueId = 0;
+        return string.concat(baseURI_, uniqueId.toString(), ".json");
+    }
+}
