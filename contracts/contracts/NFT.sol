@@ -5,13 +5,17 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
- 
+
 contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
     using Strings for uint256;
 
     uint256 private _nextTokenId;
     mapping(address => uint256[]) private listTokenId;
     string private baseURI;
+    uint256 public constant MAX_SUPPLY = 200;
+
+    event TokenMinted(address indexed to, uint256 tokenId);
+    event BaseURISet(string baseURI);
 
     constructor(
         address initialOwner,
@@ -21,14 +25,16 @@ contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
     }
 
     /// @dev the function can be called by anyone
-    function safeMint(address to) public {
+    function safeMint(address to) public onlyOwner {
+        require(to != address(0), "Invalid address");
+        require(_nextTokenId < MAX_SUPPLY, "Max supply reached");
         uint256 tokenId = _nextTokenId++;
-        uint256[] storage _listTokenId = listTokenId[to];
-        _listTokenId.push(tokenId);
+        listTokenId[to].push(tokenId);
         _safeMint(to, tokenId);
+        emit TokenMinted(to, tokenId);
     }
 
-    function getListTokenId(address _owner) public view returns(uint256[] memory){
+    function getListTokenId(address _owner) public view returns (uint256[] memory) {
         return listTokenId[_owner];
     }
 
@@ -60,9 +66,9 @@ contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
             _removeTokenFromList(from, tokenId);
             // Add tokenId to recipient's list
             listTokenId[to].push(tokenId);
-        }
-        // If this is a burn
-        else if (to == address(0)) {
+        } 
+	// If this is a burn
+	else if (to == address(0)) {
             _removeTokenFromList(from, tokenId);
         }
         
@@ -82,8 +88,9 @@ contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
         return super.supportsInterface(interfaceId);
     }
 
-    function setBaseURI(string memory baseURI_) public {
+    function setBaseURI(string memory baseURI_) public onlyOwner {
         baseURI = baseURI_;
+        emit BaseURISet(baseURI_);
     }
 
     function _baseURI() internal view override returns (string memory) {
@@ -95,9 +102,8 @@ contract DemoNFT is ERC721, ERC721Enumerable, Ownable {
 
         string memory baseURI_ = _baseURI();
 
-        // Since this collection only uses a single metadata for all NFTs that have been minted, we will return a unique uri for those
+	// Since this collection only uses a single metadata for all NFTs that have been minted, we will return a unique uri for those
         uint256 uniqueId = 0;
         return string.concat(baseURI_, uniqueId.toString(), ".json");
     }
-
 }
